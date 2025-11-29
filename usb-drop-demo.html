@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Social Engineering Demo: USB Drop</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* Utility Class */
+        .hidden {
+            display: none !important;
+        }
+
+        /* --- 1. Fake USB Inserted Alert --- */
+        #usb-alert {
+            position: fixed;
+            bottom: 20px;
+            right: -300px; /* Start off-screen */
+            background: #ffffff;
+            padding: 15px 20px;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-left: 6px solid #0078d7;
+            display: flex;
+            align-items: center;
+            transition: right 0.5s ease-out;
+            z-index: 100;
+        }
+        #usb-alert.show {
+            right: 20px; /* Slide in */
+        }
+        #usb-alert .icon {
+            font-size: 24px;
+            margin-right: 15px;
+            color: #0078d7;
+        }
+
+        /* --- Common Full-Screen Style --- */
+        .full-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0,0,0,0.6);
+            z-index: 90;
+        }
+
+        /* --- 2. Simulated Malicious Autorun Screen --- */
+        #autorun-window {
+            background: #ffffff;
+            width: 450px;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            overflow: hidden;
+            animation: popIn 0.3s ease-out;
+        }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        
+        .window-header {
+            background: linear-gradient(to right, #0078d7, #005a9e);
+            color: white;
+            padding: 12px 15px;
+            font-weight: 600;
+        }
+        .window-content { padding: 25px; }
+        .autorun-option {
+            padding: 15px;
+            border: 2px solid #eee;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .autorun-option:hover {
+            background-color: #f0f8ff;
+            border-color: #0078d7;
+        }
+        .autorun-option.malicious {
+            border-color: #d9534f;
+            background-color: #fff5f5;
+        }
+        .autorun-option .opt-icon { font-size: 24px; margin-right: 15px; }
+        .timer { margin-top: 20px; color: #666; font-style: italic; text-align: center; }
+
+        /* --- 3. Animation of Fake File Exfiltration --- */
+        #exfiltration-screen {
+            background-color: #1a1a1a;
+            color: #00ff41;
+            font-family: 'Courier New', Courier, monospace;
+            justify-content: flex-start;
+            padding-top: 100px;
+        }
+        .hacker-terminal {
+            width: 80%; max-width: 700px;
+            text-align: left;
+        }
+        .log-entry { margin: 5px 0; opacity: 0.8; }
+        .highlight { color: #ffffff; font-weight: bold; }
+        
+        #progress-container {
+            width: 100%;
+            height: 25px;
+            background-color: #333;
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 30px 0;
+            border: 2px solid #00ff41;
+        }
+        #progress-bar {
+            height: 100%; width: 0%;
+            background: repeating-linear-gradient(
+                45deg, #00cc33, #00cc33 10px, #00ff41 10px, #00ff41 20px
+            );
+            transition: width 0.5s;
+        }
+
+        /* --- 4. Awareness Message --- */
+        #awareness-screen {
+            background-color: #ffffff;
+            text-align: center;
+            padding: 50px;
+            z-index: 110; /* Ensure it's on top */
+        }
+        .stop-icon { font-size: 80px; color: #d9534f; margin-bottom: 20px; }
+        h1 { color: #d9534f; margin: 0; font-size: 2.5em; }
+        h2 { color: #333; margin-bottom: 30px; }
+        .core-message {
+            font-size: 1.4em;
+            color: #d9534f;
+            font-weight: bold;
+            margin: 30px 0;
+            padding: 20px;
+            border: 3px dashed #d9534f;
+            display: inline-block;
+        }
+        .info-box {
+            background-color: #e7f3fe;
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 6px solid #0078d7;
+            max-width: 600px;
+            margin: 0 auto;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="usb-alert">
+        <div class="icon">💾</div>
+        <div>
+            <strong>System Notification</strong><br>
+            USB Drive (E:) "Important_Docs" inserted.
+        </div>
+    </div>
+
+    <div id="autorun-wrapper" class="full-screen hidden">
+        <div id="autorun-window">
+            <div class="window-header">AutoPlay - USB Drive (E:)</div>
+            <div class="window-content">
+                <p>Choose what to do with this device:</p>
+                <div class="autorun-option">
+                    <span class="opt-icon">📁</span>
+                    <div>Open folder to view files<br><small>using Windows Explorer</small></div>
+                </div>
+                <div class="autorun-option malicious">
+                    <span class="opt-icon">⚡</span>
+                    <div><strong>Run View_Documents.exe</strong><br><small style="color:#d9534f;">Publisher not verified</small></div>
+                </div>
+                <p class="timer">Auto-running recommended action in <span id="countdown">5</span>s...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="exfiltration-screen" class="full-screen hidden">
+        <div class="hacker-terminal">
+            <p>> Executing malicious payload...</p>
+            <p>> Establishing connection to C2 server [attacker-box.xyz:443]...</p>
+            <p class="highlight">> Connection ESTABLISHED.</p>
+            <p>> Scanning system for sensitive files...</p>
+            
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+            <p>STATUS: <span id="transfer-status">Starting transfer...</span></p>
+            
+            <div id="transfer-log">
+                </div>
+        </div>
+    </div>
+
+    <div id="awareness-screen" class="full-screen hidden">
+        <div class="stop-icon">🛑</div>
+        <h1>SIMULATION TERMINATED</h1>
+        <h2>This was a "USB Drop" social engineering attack.</h2>
+        
+        <div class="core-message">
+            NEVER plug unknown USB drives into your computer.
+        </div>
+
+        <div class="info-box">
+            <p><strong>How the attack works:</strong> Attackers deliberately leave infected USB drives in public places (parking lots, lobbies, cafes) hoping curiosity will get the better of you.</p>
+            <p><strong>The Danger:</strong> Plugging it in can instantly:</p>
+            <ul>
+                <li>Install malware or ransomware.</li>
+                <li>Steal passwords and sensitive documents.</li>
+                <li>Give attackers remote access to your company network.</li>
+            </ul>
+            <p style="margin-top: 20px;"><strong>What to do:</strong> If you find a USB drive, <u>DO NOT plug it in</u>. Turn it in to your IT Security department or Lost & Found immediately.</p>
+        </div>
+    </div>
+
+
+    <script>
+        // --- Configuration ---
+        const fakeFiles = [
+            "C:\\Users\\admin\\Documents\\Passwords.txt",
+            "C:\\Users\\admin\\Desktop\\Q4_Financial_Report.xlsx",
+            "C:\\Users\\admin\\.ssh\\id_rsa_private_key",
+            "C:\\Users\\admin\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Login Data",
+            "C:\\Users\\admin\\Documents\\Confidential\\Client_List.csv",
+            "C:\\Windows\\System32\\config\\SAM",
+            ">> Finalizing data package...",
+            ">> Sending archive to remote server..."
+        ];
+        let countdownVal = 5;
+
+        // --- DOM Elements ---
+        const usbAlert = document.getElementById('usb-alert');
+        const autorunWrapper = document.getElementById('autorun-wrapper');
+        const countdownSpan = document.getElementById('countdown');
+        const exfiltrationScreen = document.getElementById('exfiltration-screen');
+        const progressBar = document.getElementById('progress-bar');
+        const transferStatus = document.getElementById('transfer-status');
+        const transferLog = document.getElementById('transfer-log');
+        const awarenessScreen = document.getElementById('awareness-screen');
+
+        // --- Sequence Logic ---
+        window.onload = function() {
+            // Stage 1: Initial delay, then show fake USB alert
+            setTimeout(() => {
+                usbAlert.classList.add('show');
+                
+                // Stage 2: After alert, show malicious autorun screen
+                setTimeout(() => {
+                    usbAlert.classList.remove('show');
+                    autorunWrapper.classList.remove('hidden');
+
+                    // Start the fake countdown on the autorun screen
+                    const countdownInterval = setInterval(() => {
+                        countdownVal--;
+                        countdownSpan.textContent = countdownVal;
+                        if (countdownVal <= 0) {
+                            clearInterval(countdownInterval);
+                            // Stage 3: Countdown finished, trigger fake exfiltration
+                            autorunWrapper.classList.add('hidden');
+                            runExfiltrationSimulation();
+                        }
+                    }, 1000);
+
+                }, 4000); // Time alert is visible
+
+            }, 2000); // Initial wait before demo starts
+        };
+
+        function runExfiltrationSimulation() {
+            exfiltrationScreen.classList.remove('hidden');
+            let i = 0;
+            let progress = 0;
+
+            // Loop through the fake file list to simulate transfer
+            const transferInterval = setInterval(() => {
+                if (i < fakeFiles.length) {
+                    const file = fakeFiles[i];
+                    
+                    // Update log
+                    const logEntry = document.createElement('p');
+                    logEntry.className = 'log-entry';
+                    logEntry.textContent = `> Uploading: ${file}`;
+                    transferLog.appendChild(logEntry);
+                    // Auto-scroll to bottom of log
+                    logEntry.scrollIntoView({ behavior: 'smooth' });
+
+                    // Update status text
+                    transferStatus.textContent = `Transferring ${file.split('\\').pop()}...`;
+
+                    // Update progress bar
+                    progress = ((i + 1) / fakeFiles.length) * 100;
+                    progressBar.style.width = `${progress}%`;
+                    
+                    i++;
+                } else {
+                    // Simulation complete
+                    clearInterval(transferInterval);
+                    transferStatus.textContent = "TRANSFER COMPLETE. Closing connection.";
+                    progressBar.style.backgroundColor = "#d9534f"; // Turn red at end
+
+                    // Stage 4: Show final awareness message
+                    setTimeout(() => {
+                        exfiltrationScreen.classList.add('hidden');
+                        awarenessScreen.classList.remove('hidden');
+                    }, 2000);
+                }
+            }, 1200); // Speed of file "transfer"
+        }
+    </script>
+</body>
+</html>
